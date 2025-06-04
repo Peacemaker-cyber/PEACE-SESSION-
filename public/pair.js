@@ -1,26 +1,12 @@
-function submitPairCode() {
-  const number = document.getElementById("whatsappNumber").value.trim();
-  const result = document.getElementById("pair-result");
+document.getElementById("submit-number").addEventListener("click", async () => {
+  const number = document.getElementById("whatsapp-number").value.trim();
+  if (!number) return alert("Please enter your number");
 
-  if (!number.startsWith("+") || number.length < 10) {
-    result.textContent = "Please enter a valid WhatsApp number starting with +";
-    result.style.color = "red";
-    return;
+  const response = await fetch(`/generate/pair`);
+  const data = await response.json();
+  if (data.pairingCode) {
+    document.getElementById("result").innerHTML = `Your Pairing Code: <b>${data.pairingCode}</b>`;
+  } else {
+    alert("Failed to generate pairing code.");
   }
-
-  // Simulate session generation
-  fetch("/api/pair", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ number }),
-  })
-    .then((res) => res.json())
-    .then((data) => {
-      result.textContent = data.message || "Session paired successfully!";
-      result.style.color = "limegreen";
-    })
-    .catch(() => {
-      result.textContent = "Something went wrong!";
-      result.style.color = "red";
-    });
-}
+});
