@@ -1,26 +1,6 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>PEACE MD - Pair Code</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <div class="overlay">
-    <div class="title">PEACE MD</div>
-
-    <h2 style="text-align: center;">Enter your WhatsApp number<br><small>Best regards, Peacemaker</small></h2>
-    <div class="input-container">
-      <input type="text" id="whatsappNumber" placeholder="+2547xxxxxxxx" />
-      <button onclick="submitPairCode()">Submit</button>
-    </div>
-
-    <p id="pair-result" style="text-align: center; margin-top: 20px;"></p>
-
-    <footer>PEACEMAKER TECH SOLUTIONS @2025</footer>
-  </div>
-
-  <script src="pair.js"></script>
-</body>
-</html>
+<form id="pairForm">
+  <input type="text" id="number" placeholder="Enter your WhatsApp number" />
+  <button type="submit">Generate</button>
+</form>
+<div id="codeResult"></div>
+<script src="pair.js"></script>
