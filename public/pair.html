@@ -1,6 +1,28 @@
-<form id="pairForm">
-  <input type="text" id="number" placeholder="Enter your WhatsApp number" />
-  <button type="submit">Generate</button>
-</form>
-<div id="codeResult"></div>
-<script src="pair.js"></script>
+<!DOCTYPE html>
+<html>
+<head>
+  <title>PEACE MD - Pair Code</title>
+</head>
+<body>
+  <h1>Enter your WhatsApp number</h1>
+  <form id="pair-form">
+    <input type="text" id="number" placeholder="Enter number" required />
+    <button type="submit">Generate Pair Code</button>
+  </form>
+  <p id="result"></p>
+
+  <script>
+    document.getElementById('pair-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const number = document.getElementById('number').value;
+      const res = await fetch('/generate-pair', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number })
+      });
+      const data = await res.json();
+      document.getElementById('result').textContent = data.pairCode || data.error;
+    });
+  </script>
+</body>
+</html>
