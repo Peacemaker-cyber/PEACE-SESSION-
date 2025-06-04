@@ -1,12 +1,14 @@
-document.getElementById("submit-number").addEventListener("click", async () => {
-  const number = document.getElementById("whatsapp-number").value.trim();
-  if (!number) return alert("Please enter your number");
+document.getElementById('pairForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const number = document.getElementById('number').value;
+  const response = await fetch('/generate-pair', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ number })
+  });
 
-  const response = await fetch(`/generate/pair`);
   const data = await response.json();
-  if (data.pairingCode) {
-    document.getElementById("result").innerHTML = `Your Pairing Code: <b>${data.pairingCode}</b>`;
-  } else {
-    alert("Failed to generate pairing code.");
-  }
+  document.getElementById('codeResult').textContent = data.pairCode || 'Failed to generate';
 });
