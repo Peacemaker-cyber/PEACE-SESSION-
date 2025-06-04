@@ -1,19 +1,19 @@
 const express = require('express');
 const path = require('path');
 const app = express();
+const PORT = process.env.PORT || 3000;
 
-app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
-// API for generating Paircode (dummy example for now)
 app.post('/generate-pair', (req, res) => {
-    const number = req.body.number;
-    if (!number) return res.status(400).json({ error: 'Number required' });
+  const { number } = req.body;
+  if (!number) return res.status(400).json({ error: 'Number is required' });
 
-    // For now just return a fake pair code
-    const code = 'PEACE-' + Math.floor(Math.random() * 100000);
-    res.json({ pairCode: code });
+  const fakeCode = 'PEACE-' + Math.floor(100000 + Math.random() * 900000);
+  res.json({ pairCode: fakeCode });
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
