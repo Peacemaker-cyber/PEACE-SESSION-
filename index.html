@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PEACE MD</title>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: url('https://files.catbox.moe/n0dgjr.jpg') no-repeat center center fixed;
+      background-size: cover;
+      color: white;
+    }
+    .overlay {
+      background: rgba(0, 0, 0, 0.7);
+      min-height: 100%;
+      padding: 20px;
+    }
+    .title {
+      text-align: center;
+      font-size: 32px;
+      font-weight: bold;
+      margin-bottom: 25px;
+    }
+    .status-bar {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      margin-bottom: 30px;
+    }
+    .battery {
+      display: flex;
+      align-items: center;
+    }
+    .battery-icon {
+      width: 24px;
+      height: 12px;
+      border: 2px solid white;
+      margin-right: 5px;
+      position: relative;
+    }
+    .battery-icon::after {
+      content: '';
+      position: absolute;
+      right: -5px;
+      top: 2px;
+      width: 3px;
+      height: 6px;
+      background: white;
+    }
+    .battery-level {
+      height: 100%;
+      background-color: limegreen;
+    }
+    .buttons {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+    }
+    .btn {
+      background: lightgreen;
+      color: black;
+      padding: 15px 25px;
+      width: 80%;
+      max-width: 300px;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .footer {
+      margin-top: 50px;
+      text-align: center;
+      font-size: 14px;
+      color: #ccc;
+    }
+  </style>
+</head>
+<body>
+  <div class="overlay">
+    <div class="title">PEACE MD</div>
+    <div class="status-bar">
+      <div id="phone-time">--:--</div>
+      <div class="battery">
+        <div class="battery-icon">
+          <div class="battery-level" id="battery-level" style="width: 100%;"></div>
+        </div>
+        <div id="battery-text">100%</div>
+      </div>
+    </div>
+    <div class="buttons">
+      <button class="btn">QR CODE</button>
+      <button class="btn">PAIR CODE</button>
+      <button class="btn">DEVELOPER</button>
+      <button class="btn">WHATSAPP CHANNEL</button>
+      <button class="btn">SUPPORT</button>
+      <button class="btn" onclick="toggleMusic()">PLAY/PAUSE MUSIC</button>
+    </div>
+    <div class="footer">PEACEMAKER TECH SOLUTIONS @2025</div>
+  </div>
+  <audio id="bg-music" loop src="https://files.catbox.moe/09ku2f.mp3" autoplay></audio>
+  <script>
+    function updateTime() {
+      const now = new Date();
+      const hrs = String(now.getHours()).padStart(2, '0');
+      const mins = String(now.getMinutes()).padStart(2, '0');
+      document.getElementById('phone-time').textContent = `${hrs}:${mins}`;
+    }
+    updateTime();
+    setInterval(updateTime, 1000);
+
+    if (navigator.getBattery) {
+      navigator.getBattery().then(battery => {
+        function updateBattery() {
+          const level = Math.round(battery.level * 100);
+          document.getElementById('battery-text').textContent = `${level}%`;
+          document.getElementById('battery-level').style.width = `${level}%`;
+          document.getElementById('battery-level').style.backgroundColor = level > 20 ? 'limegreen' : 'red';
+        }
+        updateBattery();
+        battery.addEventListener('levelchange', updateBattery);
+      });
+    }
+
+    const music = document.getElementById("bg-music");
+    function toggleMusic() {
+      if (music.paused) {
+        music.play();
+      } else {
+        music.pause();
+      }
+    }
+  </script>
+</body>
+</html>
