@@ -1,18 +1,21 @@
 // pair.js
 
-const form = document.getElementById('pairForm'); const resultEl = document.getElementById('result');
+const form = document.getElementById('pairForm'); const phoneInput = document.getElementById('phone'); const result = document.getElementById('result');
 
-form.addEventListener('submit', async (e) => { e.preventDefault(); const number = document.getElementById('whatsAppNumber').value; if (!number) return alert('Please enter a valid WhatsApp number');
+form.addEventListener('submit', async (e) => { e.preventDefault(); const phoneNumber = phoneInput.value.trim();
 
-resultEl.textContent = 'Generating code, please wait...';
+if (!phoneNumber) { result.textContent = 'Please enter your WhatsApp number.'; return; }
 
-try { const res = await fetch('/api/pair-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ number }) }); const data = await res.json();
+result.textContent = 'Generating pair code...';
 
-if (res.ok) {
-  resultEl.innerHTML = `<strong>Pair Code:</strong> ${data.code}`;
+try { const response = await fetch('/api/gen-pair', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: phoneNumber }) });
+
+const data = await response.json();
+if (data.pairCode) {
+  result.textContent = `Pair code: ${data.pairCode}`;
 } else {
-  resultEl.textContent = data.error || 'Failed to generate pair code';
+  result.textContent = data.error || 'Failed to generate pair code.';
 }
 
-} catch (err) { resultEl.textContent = 'Error connecting to server'; } });
+} catch (error) { console.error('Error:', error); result.textContent = 'An error occurred while generating pair code.'; } });
 
