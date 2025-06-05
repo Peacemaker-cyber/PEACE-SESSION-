@@ -1,28 +1,40 @@
+<!-- public/pair.html -->
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>PEACE MD - Pair Code</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PEACE MD</title>
+  <script defer src="pair.js" type="module"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: url('https://files.catbox.moe/n0dgjr.jpg') no-repeat center center fixed;
+      background-size: cover;
+      color: white;
+      text-align: center;
+      padding-top: 100px;
+    }
+    input, button {
+      padding: 10px;
+      margin-top: 10px;
+      font-size: 16px;
+    }
+    button {
+      background: lightgreen;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+  </style>
 </head>
 <body>
-  <h1>Enter your WhatsApp number</h1>
-  <form id="pair-form">
-    <input type="text" id="number" placeholder="Enter number" required />
-    <button type="submit">Generate Pair Code</button>
-  </form>
+  <h1>PEACE MD</h1>
+  <p>Enter your WhatsApp number<br><small>Best regards, Peacemaker</small></p>
+  <input type="text" id="numberInput" placeholder="+254700000000" />
+  <br />
+  <button id="submitBtn">Generate Code</button>
   <p id="result"></p>
-
-  <script>
-    document.getElementById('pair-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const number = document.getElementById('number').value;
-      const res = await fetch('/generate-pair', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ number })
-      });
-      const data = await res.json();
-      document.getElementById('result').textContent = data.pairCode || data.error;
-    });
-  </script>
 </body>
 </html>
