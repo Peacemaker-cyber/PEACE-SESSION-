@@ -1,24 +1,38 @@
-// index.js - Server backend for PEACE MD WhatsApp Session ID Generator import express from "express"; import { Boom } from "@hapi/boom"; import makeWASocket, { useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason, makeInMemoryStore, } from "@whiskeysockets/baileys"; import QRCode from "qrcode"; import cors from "cors"; import fs from "fs"; import path from "path"; import { fileURLToPath } from "url";
+// index.js
 
-const __filename = fileURLToPath(import.meta.url); const __dirname = path.dirname(__filename);
+import express from 'express'; import { Boom } from '@hapi/boom'; import makeWASocket, { useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason } from '@whiskeysockets/baileys'; import cors from 'cors'; import path from 'path'; import fs from 'fs';
 
-const app = express(); const PORT = process.env.PORT || 3000; app.use(cors()); app.use(express.json()); app.use(express.static("public"));
+const app = express(); const PORT = process.env.PORT || 3000; const __dirname = path.resolve();
 
-const sessions = {};
+app.use(cors()); app.use(express.static(path.join(__dirname, 'public'))); app.use(express.json());
 
-app.post("/generate", async (req, res) => { const { number } = req.body; if (!number) return res.status(400).json({ error: "Phone number required" });
+// Pair Code Handler let latestPairCode = '';
 
-const sessionId = session-${Date.now()}; const sessionPath = path.join(__dirname, auth/${sessionId});
+app.post('/generate-id', async (req, res) => { const { number } = req.body; if (!number) return res.status(400).json({ error: 'Phone number is required' });
 
-const { state, saveCreds } = await useMultiFileAuthState(sessionPath); const { version } = await fetchLatestBaileysVersion();
+const { state, saveCreds } = await useMultiFileAuthState(auth_${number}); const { version } = await fetchLatestBaileysVersion();
 
-const sock = makeWASocket({ version, printQRInTerminal: false, auth: state, browser: ["PEACE MD", "Chrome", "1.0"], });
+const sock = makeWASocket({ version, auth: state, printQRInTerminal: false, });
 
-sock.ev.on("connection.update", async (update) => { const { connection, qr } = update; if (qr) { const qrImage = await QRCode.toDataURL(qr); sessions[sessionId] = { qrImage, sock, saveCreds }; } if (connection === "open") { await saveCreds(); } });
+sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr, pairCode }) => { if (connection === 'close') { const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut; if (shouldReconnect) { console.log('Reconnecting...'); } } if (pairCode) { latestPairCode = pairCode; } });
 
-res.json({ sessionId }); });
+sock.ev.on('creds.update', saveCreds);
 
-app.get("/qr/:sessionId", (req, res) => { const { sessionId } = req.params; const session = sessions[sessionId]; if (!session || !session.qrImage) { return res.status(404).json({ error: "QR code not found" }); } res.json({ qr: session.qrImage }); });
+setTimeout(() => { if (latestPairCode) { res.json({ code: latestPairCode }); } else { res.status(500).json({ error: 'Failed to generate code' }); } }, 5000); });
 
-app.listen(PORT, () => console.log(Server running on http://localhost:${PORT}));
+// QR Code Handler let currentQR = '';
+
+app.get('/generate-qr', async (req, res) => { const { state, saveCreds } = await useMultiFileAuthState('auth_qr'); const { version } = await fetchLatestBaileysVersion();
+
+const sock = makeWASocket({ version, auth: state, printQRInTerminal: false, });
+
+sock.ev.on('connection.update', async ({ connection, qr }) => { if (qr) { currentQR = https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}; } });
+
+sock.ev.on('creds.update', saveCreds);
+
+setTimeout(() => { if (currentQR) { res.json({ qr: currentQR }); } else { res.status(500).json({ error: 'QR not available' }); } }, 5000); });
+
+// Serve index.html fallback app.get('*', (req, res) => { res.sendFile(path.join(__dirname, 'public', 'index.html')); });
+
+app.listen(PORT, () => { console.log(✅ Server running at http://localhost:${PORT}); });
 
