@@ -20,8 +20,6 @@ app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
-let currentQR = '';
-
 // ======== Pair Code Generation ========
 app.post('/generate-id', async (req, res) => {
   try {
@@ -32,52 +30,54 @@ app.post('/generate-id', async (req, res) => {
     const { state, saveCreds } = await useMultiFileAuthState(authDir);
     const { version } = await fetchLatestBaileysVersion();
 
+    let pairCodeSent = false;
+
     const sock = makeWASocket({
       version,
       auth: state,
-      printQRInTerminal: false
+      printQRInTerminal: false,
+      browser: ['Ubuntu', 'Chrome', '20.0']
     });
 
     sock.ev.on('creds.update', saveCreds);
 
-    let sent = false;
-
-    const timeout = setTimeout(() => {
-      if (!sent) {
-        res.status(500).json({ error: 'Failed to generate pairing code' });
-        sent = true;
-      }
-    }, 8000); // Give time for pairingCode to be emitted
-
     sock.ev.on('connection.update', async (update) => {
-      const { pairingCode, pairCode, connection, lastDisconnect } = update;
+      const { connection, lastDisconnect, pairingCode, pairCode } = update;
 
-      if ((pairingCode || pairCode) && !sent) {
-        const latestPairCode = pairingCode || pairCode;
-        clearTimeout(timeout);
-        res.json({ code: latestPairCode });
-        console.log('✅ Generated Pair Code:', latestPairCode);
-        sent = true;
+      if ((pairingCode || pairCode) && !pairCodeSent) {
+        const finalCode = pairingCode || pairCode;
+        pairCodeSent = true;
+        console.log('✅ Pair Code Generated:', finalCode);
+        return res.json({ code: finalCode });
       }
 
       if (connection === 'close') {
         const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-        if (shouldReconnect) {
-          console.log('⚠️ Reconnecting...');
-        }
+        console.log('🔌 Connection closed. Reconnect?', shouldReconnect);
       }
 
       if (connection === 'open') {
         console.log('✅ WhatsApp connected!');
-
-        const jid = sock.user?.id;
-        if (jid) {
-          await sock.sendMessage(jid, {
-            text: '✅ PEACE MD WhatsApp bot is now connected and ready!'
-          });
+        try {
+          const jid = sock.user?.id;
+          if (jid) {
+            await sock.sendMessage(jid, {
+              text: '🎉 PEACE MD is now connected!'
+            });
+          }
+        } catch (err) {
+          console.warn('⚠️ Failed to send welcome message:', err);
         }
       }
     });
+
+    // Fallback timeout to prevent hanging request
+    setTimeout(() => {
+      if (!pairCodeSent) {
+        console.log('❌ Timeout: Pair code not generated');
+        res.status(500).json({ error: 'Failed to generate pairing code in time' });
+      }
+    }, 10000);
   } catch (error) {
     console.error('❌ Error generating ID:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -93,24 +93,22 @@ app.get('/generate-qr', async (req, res) => {
     const sock = makeWASocket({
       version,
       auth: state,
-      printQRInTerminal: false
+      printQRInTerminal: false,
+      browser: ['Ubuntu', 'Chrome', '20.0']
     });
 
     sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', async ({ qr }) => {
       if (qr) {
-        currentQR = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
+        const qrURL = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
         console.log('✅ QR Code Generated');
+        return res.json({ qr: qrURL });
       }
     });
 
     setTimeout(() => {
-      if (currentQR) {
-        res.json({ qr: currentQR });
-      } else {
-        res.status(500).json({ error: 'QR not available' });
-      }
+      res.status(500).json({ error: 'QR not available' });
     }, 5000);
   } catch (error) {
     console.error('❌ Error generating QR:', error);
