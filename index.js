@@ -9,8 +9,8 @@ import {
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
-import crypto from 'crypto';      // ✅ Fix for crypto error on Render
-global.crypto = crypto;           // ✅ Required for Baileys noise protocol
+import crypto from 'crypto';      // ✅ Required by Baileys for crypto functions
+global.crypto = crypto;           // ✅ Set crypto globally for Baileys to work in ESM
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -20,14 +20,15 @@ app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
-let latestPairCode = '';
 let currentQR = '';
 
 // ======== Pair Code Generation ========
 app.post('/generate-id', async (req, res) => {
   try {
-    const { number } = req.body;
+    let { number } = req.body;
     if (!number) return res.status(400).json({ error: 'Phone number is required' });
+
+    number = number.replace(/\D/g, ''); // ✅ Sanitize to E.164 (digits only)
 
     const authDir = `auth_${number}`;
     const { state, saveCreds } = await useMultiFileAuthState(authDir);
@@ -37,15 +38,13 @@ app.post('/generate-id', async (req, res) => {
       version,
       auth: state,
       printQRInTerminal: false,
-      browser: ['Ubuntu', 'Chrome', '22.04'],     // ✅ Required for pairing code
-      syncFullHistory: false,
-      generateHighQualityLinkPreview: false
+      browser: ["Windows", "Chrome", "114.0.5735.198"]  // ✅ Custom browser identity
     });
 
     sock.ev.on('creds.update', saveCreds);
 
-    sock.ev.on('connection.update', async (update) => {
-      const { connection, lastDisconnect, pairingCode, pairCode } = update;
+    sock.ev.on('connection.update', (update) => {
+      const { connection, lastDisconnect } = update;
 
       if (connection === 'close') {
         const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
@@ -54,19 +53,21 @@ app.post('/generate-id', async (req, res) => {
         }
       }
 
-      if (pairingCode || pairCode) {
-        latestPairCode = pairingCode || pairCode;
-        console.log('Generated Pair Code:', latestPairCode);
+      if (connection === 'open') {
+        console.log('✅ WhatsApp connected');
       }
     });
 
-    setTimeout(() => {
-      if (latestPairCode) {
-        res.json({ code: latestPairCode });
-      } else {
-        res.status(500).json({ error: 'Failed to generate pairing code' });
-      }
-    }, 6000);
+    // ✅ Request the pairing code directly
+    const code = await sock.requestPairingCode(number + '@s.whatsapp.net');
+
+    if (code) {
+      console.log('Generated Pair Code:', code);
+      res.json({ code });
+    } else {
+      res.status(500).json({ error: 'Failed to generate pairing code' });
+    }
+
   } catch (error) {
     console.error('Error generating ID:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -83,9 +84,7 @@ app.get('/generate-qr', async (req, res) => {
       version,
       auth: state,
       printQRInTerminal: false,
-      browser: ['Ubuntu', 'Chrome', '22.04'],     // ✅ Same here for QR generation
-      syncFullHistory: false,
-      generateHighQualityLinkPreview: false
+      browser: ["Ubuntu", "Chrome", "114.0.5735.198"]
     });
 
     sock.ev.on('creds.update', saveCreds);
