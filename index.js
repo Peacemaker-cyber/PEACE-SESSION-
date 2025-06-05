@@ -10,7 +10,7 @@ import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
-global.crypto = crypto; // Required for Baileys crypto functions
+global.crypto = crypto;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -29,51 +29,45 @@ app.post('/generate-id', async (req, res) => {
     if (!number) return res.status(400).json({ error: 'Phone number is required' });
 
     const authDir = `auth_${number}`;
-    if (!fs.existsSync(authDir)) fs.mkdirSync(authDir); // Ensure folder exists
-
     const { state, saveCreds } = await useMultiFileAuthState(authDir);
     const { version } = await fetchLatestBaileysVersion();
-
-    let responded = false;
 
     const sock = makeWASocket({
       version,
       auth: state,
-      printQRInTerminal: false,
-      browser: ['Ubuntu', 'Chrome', '20.0']
+      printQRInTerminal: false
     });
 
     sock.ev.on('creds.update', saveCreds);
 
+    let responded = false;
+
     sock.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect, pairingCode, pairCode } = update;
 
-      console.log('🔄 Connection Update:', update);
-
       if ((pairingCode || pairCode) && !responded) {
         const code = pairingCode || pairCode;
+        console.log('✅ Generated Pair Code:', code);
         responded = true;
-        console.log('✅ Pair Code Generated:', code);
         return res.json({ code });
       }
 
       if (connection === 'close') {
         const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-        console.log('🔌 Connection closed. Should reconnect:', shouldReconnect);
-      }
-
-      if (connection === 'open') {
-        console.log('✅ Connection open');
+        if (shouldReconnect && !responded) {
+          responded = true;
+          return res.status(500).json({ error: 'Connection closed before generating pair code' });
+        }
       }
     });
 
-    // Fallback timeout
+    // Safety timeout after 15 seconds
     setTimeout(() => {
       if (!responded) {
-        console.error('❌ Timed out waiting for pairing code');
-        res.status(500).json({ error: 'Failed to generate pairing code in time' });
+        responded = true;
+        return res.status(500).json({ error: 'Timed out waiting for pair code' });
       }
-    }, 20000);
+    }, 15000);
   } catch (error) {
     console.error('❌ Error generating ID:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -97,19 +91,17 @@ app.get('/generate-qr', async (req, res) => {
     sock.ev.on('connection.update', async ({ qr }) => {
       if (qr) {
         currentQR = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
-        console.log('QR Code Generated');
+        console.log('✅ QR Code Generated');
+        return res.json({ qr: currentQR });
       }
     });
 
+    // Safety timeout after 10 seconds
     setTimeout(() => {
-      if (currentQR) {
-        res.json({ qr: currentQR });
-      } else {
-        res.status(500).json({ error: 'QR not available' });
-      }
-    }, 5000);
+      return res.status(500).json({ error: 'QR not available' });
+    }, 10000);
   } catch (error) {
-    console.error('Error generating QR:', error);
+    console.error('❌ Error generating QR:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
