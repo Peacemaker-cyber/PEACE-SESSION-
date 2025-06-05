@@ -1,39 +1,34 @@
-app.post('/generate-id', async (req, res) => {
-  const { number } = req.body;
-  if (!number) return res.status(400).json({ error: 'Phone number is required' });
+document.getElementById('generateBtn').addEventListener('click', async () => {
+  const number = document.getElementById('numberInput').value.trim();
+  const codeDisplay = document.getElementById('codeDisplay');
 
-  const { state, saveCreds } = await useMultiFileAuthState(`auth_${number}`);
-  const { version } = await fetchLatestBaileysVersion();
+  if (!number) {
+    codeDisplay.innerText = 'Please enter your phone number.';
+    return;
+  }
 
-  const sock = makeWASocket({
-    version,
-    auth: state,
-    printQRInTerminal: false
-  });
+  codeDisplay.innerText = 'Generating pair code...';
 
-  sock.ev.on('connection.update', async (update) => {
-    const { connection, lastDisconnect, pairingCode, pairCode } = update;
+  try {
+    const response = await fetch('/generate-id', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ number }),
+    });
 
-    if (connection === 'close') {
-      const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-      if (shouldReconnect) {
-        console.log('Reconnecting...');
-      }
-    }
+    const data = await response.json();
 
-    if (pairingCode || pairCode) {
-      latestPairCode = pairingCode || pairCode;
-      console.log('Generated Pair Code:', latestPairCode);
-    }
-  });
-
-  sock.ev.on('creds.update', saveCreds);
-
-  setTimeout(() => {
-    if (latestPairCode) {
-      res.json({ code: latestPairCode });
+    if (data.code) {
+      codeDisplay.innerHTML = `<strong>Pair Code:</strong> ${data.code}`;
+    } else if (data.error) {
+      codeDisplay.innerText = `Error: ${data.error}`;
     } else {
-      res.status(500).json({ error: 'Failed to generate code' });
+      codeDisplay.innerText = 'Unexpected response from server.';
     }
-  }, 5000);
+  } catch (error) {
+    console.error(error);
+    codeDisplay.innerText = 'Failed to generate pair code.';
+  }
 });
