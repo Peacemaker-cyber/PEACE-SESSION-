@@ -9,6 +9,8 @@ import {
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';      // ✅ Added for Baileys
+global.crypto = crypto;           // ✅ Set crypto globally for ESM support
 
 const app = express();
 const PORT = process.env.PORT || 3000;
