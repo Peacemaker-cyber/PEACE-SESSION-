@@ -1,25 +1,32 @@
+<!-- public/qr.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>PEACE MD - QR Code</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PEACE MD</title>
+  <script defer src="qr.js" type="module"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: url('https://files.catbox.moe/n0dgjr.jpg') no-repeat center center fixed;
+      background-size: cover;
+      color: white;
+      text-align: center;
+      padding-top: 100px;
+    }
+    img {
+      margin-top: 20px;
+      width: 250px;
+      height: 250px;
+    }
+  </style>
 </head>
 <body>
-  <div class="overlay">
-    <div class="title">PEACE MD</div>
-
-    <h2 style="text-align: center;">Scan QR to link WhatsApp</h2>
-    <div id="qr-container" style="display: flex; justify-content: center; margin-top: 20px;">
-      <img id="qr-image" src="" alt="QR will appear here" />
-    </div>
-
-    <p id="qr-status" style="text-align: center; margin-top: 20px;"></p>
-
-    <footer>PEACEMAKER TECH SOLUTIONS @2025</footer>
+  <h1>PEACE MD</h1>
+  <p>Scan this QR code to log in</p>
+  <div id="qrContainer">
+    <img src="" id="qrImage" alt="QR Code" />
   </div>
-
-  <script src="qr.js"></script>
 </body>
 </html>
