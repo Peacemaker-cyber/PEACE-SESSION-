@@ -1,32 +1,66 @@
-<!-- public/qr.html -->
-<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html><html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PEACE MD</title>
-  <script defer src="qr.js" type="module"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PEACE MD - QR Code</title>
   <style>
     body {
+      margin: 0;
       font-family: 'Segoe UI', sans-serif;
       background: url('https://files.catbox.moe/n0dgjr.jpg') no-repeat center center fixed;
       background-size: cover;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
       color: white;
-      text-align: center;
-      padding-top: 100px;
-    }
-    img {
-      margin-top: 20px;
-      width: 250px;
-      height: 250px;
-    }
+    }.overlay {
+  background-color: rgba(0, 0, 0, 0.75);
+  padding: 2rem;
+  border-radius: 15px;
+  text-align: center;
+}
+
+h1 {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+}
+
+#qr-container {
+  margin: 1.5rem 0;
+}
+
+#qr-container img {
+  width: 200px;
+  height: 200px;
+  border: 5px solid white;
+  border-radius: 10px;
+}
+
+#status {
+  margin-top: 1rem;
+  font-weight: bold;
+  color: lightgreen;
+}
+
+footer {
+  margin-top: 2rem;
+  font-size: 0.9rem;
+  color: #ccc;
+}
+
   </style>
 </head>
 <body>
-  <h1>PEACE MD</h1>
-  <p>Scan this QR code to log in</p>
-  <div id="qrContainer">
-    <img src="" id="qrImage" alt="QR Code" />
+  <div class="overlay">
+    <h1>PEACE MD - Scan QR Code</h1>
+    <div id="qr-container">
+      <img id="qr-image" src="" alt="QR Code" style="display: none;">
+    </div>
+    <div id="status">Requesting QR code...</div>
+    <footer>PEACEMAKER TECH SOLUTIONS ©2025</footer>
   </div>
+  <script src="qr.js"></script>
 </body>
 </html>
