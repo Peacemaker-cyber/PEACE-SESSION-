@@ -1,40 +1,63 @@
-<!-- public/pair.html -->
-<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html><html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PEACE MD</title>
-  <script defer src="pair.js" type="module"></script>
+  <title>PEACE MD - Pair Code</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
   <style>
     body {
-      font-family: 'Segoe UI', sans-serif;
+      font-family: 'Poppins', sans-serif;
       background: url('https://files.catbox.moe/n0dgjr.jpg') no-repeat center center fixed;
       background-size: cover;
       color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
       text-align: center;
-      padding-top: 100px;
+      backdrop-filter: brightness(0.5);
     }
-    input, button {
-      padding: 10px;
-      margin-top: 10px;
-      font-size: 16px;
+    h1 {
+      margin-bottom: 1rem;
+      font-size: 2rem;
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+    input[type="text"] {
+      padding: 0.7rem;
+      width: 280px;
+      font-size: 1.1rem;
+      border-radius: 6px;
+      border: none;
     }
     button {
-      background: lightgreen;
+      background-color: #00cc66;
+      color: white;
       border: none;
+      padding: 0.8rem 1.5rem;
       border-radius: 6px;
+      font-size: 1rem;
+      font-weight: 600;
       cursor: pointer;
-      font-weight: bold;
+    }
+    #result {
+      margin-top: 1.2rem;
+      font-size: 1.1rem;
     }
   </style>
 </head>
 <body>
   <h1>PEACE MD</h1>
-  <p>Enter your WhatsApp number<br><small>Best regards, Peacemaker</small></p>
-  <input type="text" id="numberInput" placeholder="+254700000000" />
-  <br />
-  <button id="submitBtn">Generate Code</button>
-  <p id="result"></p>
-</body>
+  <form id="pairForm">
+    <label for="whatsAppNumber">Enter your WhatsApp number<br/>Best regards,<br/>Peacemaker</label>
+    <input type="text" id="whatsAppNumber" placeholder="e.g. +1234567890" required />
+    <button type="submit">Generate Pair Code</button>
+  </form>
+  <div id="result"></div>  <script src="/pair.js" defer></script></body>
 </html>
