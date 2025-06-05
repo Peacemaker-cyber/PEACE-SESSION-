@@ -1,3 +1,5 @@
+// index.js
+
 import express from 'express';
 import { Boom } from '@hapi/boom';
 import makeWASocket, {
@@ -17,77 +19,91 @@ app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
-let latestPairCode = '';
-let currentQR = '';
-
 // ======== Pair Code Generation ========
 app.post('/generate-id', async (req, res) => {
   const { number } = req.body;
   if (!number) return res.status(400).json({ error: 'Phone number is required' });
 
-  const { state, saveCreds } = await useMultiFileAuthState(`auth_${number}`);
-  const { version } = await fetchLatestBaileysVersion();
+  try {
+    const { state, saveCreds } = await useMultiFileAuthState(`auth_${number}`);
+    const { version } = await fetchLatestBaileysVersion();
 
-  const sock = makeWASocket({
-    version,
-    auth: state,
-    printQRInTerminal: false
-  });
+    let pairCodeSent = false;
 
-  sock.ev.on('connection.update', async (update) => {
-    const { connection, lastDisconnect, pairingCode, pairCode } = update;
+    const sock = makeWASocket({
+      version,
+      auth: state,
+      printQRInTerminal: false
+    });
 
-    if (connection === 'close') {
-      const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-      if (shouldReconnect) {
-        console.log('Reconnecting...');
+    sock.ev.on('connection.update', async (update) => {
+      const { connection, lastDisconnect, pairingCode, pairCode } = update;
+
+      if (connection === 'close') {
+        const shouldReconnect =
+          (lastDisconnect?.error instanceof Boom &&
+            lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut);
+        if (shouldReconnect) {
+          console.log('Reconnecting...');
+        }
       }
-    }
 
-    if (pairingCode || pairCode) {
-      latestPairCode = pairingCode || pairCode;
-      console.log('Generated Pair Code:', latestPairCode);
-    }
-  });
+      if (!pairCodeSent && (pairingCode || pairCode)) {
+        const code = pairingCode || pairCode;
+        console.log('✅ Pair Code Generated:', code);
+        pairCodeSent = true;
+        res.json({ code });
+      }
+    });
 
-  sock.ev.on('creds.update', saveCreds);
+    sock.ev.on('creds.update', saveCreds);
 
-  setTimeout(() => {
-    if (latestPairCode) {
-      res.json({ code: latestPairCode });
-    } else {
-      res.status(500).json({ error: 'Failed to generate code' });
-    }
-  }, 5000);
+    // Fallback if no pair code is returned in time
+    setTimeout(() => {
+      if (!pairCodeSent) {
+        res.status(500).json({ error: 'Failed to generate pair code in time.' });
+      }
+    }, 10000);
+  } catch (err) {
+    console.error('❌ Error during pair code generation:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
 });
 
 // ======== QR Code Generation ========
 app.get('/generate-qr', async (req, res) => {
-  const { state, saveCreds } = await useMultiFileAuthState('auth_qr');
-  const { version } = await fetchLatestBaileysVersion();
+  try {
+    const { state, saveCreds } = await useMultiFileAuthState('auth_qr');
+    const { version } = await fetchLatestBaileysVersion();
 
-  const sock = makeWASocket({
-    version,
-    auth: state,
-    printQRInTerminal: false
-  });
+    let qrSent = false;
 
-  sock.ev.on('connection.update', async ({ qr }) => {
-    if (qr) {
-      currentQR = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
-      console.log('QR Code Generated');
-    }
-  });
+    const sock = makeWASocket({
+      version,
+      auth: state,
+      printQRInTerminal: false
+    });
 
-  sock.ev.on('creds.update', saveCreds);
+    sock.ev.on('connection.update', async ({ qr }) => {
+      if (qr && !qrSent) {
+        const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
+        console.log('✅ QR Code Generated');
+        qrSent = true;
+        res.json({ qr: qrImageUrl });
+      }
+    });
 
-  setTimeout(() => {
-    if (currentQR) {
-      res.json({ qr: currentQR });
-    } else {
-      res.status(500).json({ error: 'QR not available' });
-    }
-  }, 5000);
+    sock.ev.on('creds.update', saveCreds);
+
+    setTimeout(() => {
+      if (!qrSent) {
+        res.status(500).json({ error: 'QR not available' });
+      }
+    }, 10000);
+  } catch (err) {
+    console.error('❌ Error generating QR code:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
 });
 
 // ======== Serve index.html fallback ========
