@@ -1,6 +1,11 @@
 import express from 'express';
 import { Boom } from '@hapi/boom';
-import * as baileys from '@whiskeysockets/baileys';
+import {
+  makeWASocket,
+  useMultiFileAuthState,
+  fetchLatestBaileysVersion,
+  DisconnectReason
+} from '@whiskeysockets/baileys';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
@@ -23,10 +28,10 @@ app.post('/generate-id', async (req, res) => {
     if (!number) return res.status(400).json({ error: 'Phone number is required' });
 
     const authDir = `auth_${number}`;
-    const { state, saveCreds } = await baileys.useMultiFileAuthState(authDir);
-    const { version } = await baileys.fetchLatestBaileysVersion();
+    const { state, saveCreds } = await useMultiFileAuthState(authDir);
+    const { version } = await fetchLatestBaileysVersion();
 
-    const sock = baileys.default({
+    const sock = makeWASocket({
       version,
       auth: state,
       printQRInTerminal: false
@@ -38,7 +43,7 @@ app.post('/generate-id', async (req, res) => {
       const { connection, lastDisconnect, pairingCode, pairCode } = update;
 
       if (connection === 'close') {
-        const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== baileys.DisconnectReason.loggedOut;
+        const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
         if (shouldReconnect) {
           console.log('Reconnecting...');
         }
@@ -66,10 +71,10 @@ app.post('/generate-id', async (req, res) => {
 // ======== QR Code Generation ========
 app.get('/generate-qr', async (req, res) => {
   try {
-    const { state, saveCreds } = await baileys.useMultiFileAuthState('auth_qr');
-    const { version } = await baileys.fetchLatestBaileysVersion();
+    const { state, saveCreds } = await useMultiFileAuthState('auth_qr');
+    const { version } = await fetchLatestBaileysVersion();
 
-    const sock = baileys.default({
+    const sock = makeWASocket({
       version,
       auth: state,
       printQRInTerminal: false
