@@ -1,38 +1,24 @@
-// index.js (Backend Server) import express from 'express'; import cors from 'cors'; import { Boom } from '@hapi/boom'; import makeWASocket, { useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason, makeInMemoryStore } from '@whiskeysockets/baileys'; import P from 'pino'; import qrcode from 'qrcode'; import path from 'path'; import { fileURLToPath } from 'url';
+// index.js - Server backend for PEACE MD WhatsApp Session ID Generator import express from "express"; import { Boom } from "@hapi/boom"; import makeWASocket, { useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason, makeInMemoryStore, } from "@whiskeysockets/baileys"; import QRCode from "qrcode"; import cors from "cors"; import fs from "fs"; import path from "path"; import { fileURLToPath } from "url";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url)); const app = express(); const port = process.env.PORT || 3000;
+const __filename = fileURLToPath(import.meta.url); const __dirname = path.dirname(__filename);
 
-app.use(cors()); app.use(express.json()); app.use(express.static('public'));
+const app = express(); const PORT = process.env.PORT || 3000; app.use(cors()); app.use(express.json()); app.use(express.static("public"));
 
-let qrData = null;
+const sessions = {};
 
-const startSocket = async () => { const { state, saveCreds } = await useMultiFileAuthState('auth'); const { version } = await fetchLatestBaileysVersion();
+app.post("/generate", async (req, res) => { const { number } = req.body; if (!number) return res.status(400).json({ error: "Phone number required" });
 
-const sock = makeWASocket({ version, logger: P({ level: 'silent' }), printQRInTerminal: true, auth: state, browser: ['PEACE MD', 'Chrome', '1.0'] });
+const sessionId = session-${Date.now()}; const sessionPath = path.join(__dirname, auth/${sessionId});
 
-sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => { if (qr) { qrData = await qrcode.toDataURL(qr); }
+const { state, saveCreds } = await useMultiFileAuthState(sessionPath); const { version } = await fetchLatestBaileysVersion();
 
-if (connection === 'close') {
-  const reason = new Boom(lastDisconnect?.error).output.statusCode;
-  if (reason === DisconnectReason.loggedOut) {
-    console.log('Logged out. Restarting...');
-    startSocket();
-  }
-} else if (connection === 'open') {
-  console.log('Connected');
-}
+const sock = makeWASocket({ version, printQRInTerminal: false, auth: state, browser: ["PEACE MD", "Chrome", "1.0"], });
 
-});
+sock.ev.on("connection.update", async (update) => { const { connection, qr } = update; if (qr) { const qrImage = await QRCode.toDataURL(qr); sessions[sessionId] = { qrImage, sock, saveCreds }; } if (connection === "open") { await saveCreds(); } });
 
-sock.ev.on('creds.update', saveCreds); };
+res.json({ sessionId }); });
 
-startSocket();
+app.get("/qr/:sessionId", (req, res) => { const { sessionId } = req.params; const session = sessions[sessionId]; if (!session || !session.qrImage) { return res.status(404).json({ error: "QR code not found" }); } res.json({ qr: session.qrImage }); });
 
-// Routes app.get('/api/qr', (req, res) => { res.json({ qr: qrData }); });
-
-app.post('/api/gen-id', (req, res) => { const { number } = req.body; if (!number) return res.status(400).json({ error: 'Number is required' });
-
-const code = Math.floor(100000 + Math.random() * 900000).toString(); res.json({ code }); });
-
-app.listen(port, () => { console.log(Server running on http://localhost:${port}); });
+app.listen(PORT, () => console.log(Server running on http://localhost:${PORT}));
 
