@@ -9,8 +9,8 @@ import {
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
-import crypto from 'crypto';      // ✅ Added for Baileys
-global.crypto = crypto;           // ✅ Set crypto globally for ESM support
+import crypto from 'crypto';      // ✅ Fix for crypto error on Render
+global.crypto = crypto;           // ✅ Required for Baileys noise protocol
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -36,7 +36,10 @@ app.post('/generate-id', async (req, res) => {
     const sock = makeWASocket({
       version,
       auth: state,
-      printQRInTerminal: false
+      printQRInTerminal: false,
+      browser: ['Ubuntu', 'Chrome', '22.04'],     // ✅ Required for pairing code
+      syncFullHistory: false,
+      generateHighQualityLinkPreview: false
     });
 
     sock.ev.on('creds.update', saveCreds);
@@ -79,7 +82,10 @@ app.get('/generate-qr', async (req, res) => {
     const sock = makeWASocket({
       version,
       auth: state,
-      printQRInTerminal: false
+      printQRInTerminal: false,
+      browser: ['Ubuntu', 'Chrome', '22.04'],     // ✅ Same here for QR generation
+      syncFullHistory: false,
+      generateHighQualityLinkPreview: false
     });
 
     sock.ev.on('creds.update', saveCreds);
