@@ -1,6 +1,5 @@
-// index.js
-
 import express from 'express';
+import { Boom } from '@hapi/boom';
 import makeWASocket, {
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
@@ -18,9 +17,10 @@ app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
-// Pair Code Handler
 let latestPairCode = '';
+let currentQR = '';
 
+// ======== Pair Code Generation ========
 app.post('/generate-id', async (req, res) => {
   const { number } = req.body;
   if (!number) return res.status(400).json({ error: 'Phone number is required' });
@@ -34,15 +34,19 @@ app.post('/generate-id', async (req, res) => {
     printQRInTerminal: false
   });
 
-  sock.ev.on('connection.update', async ({ connection, lastDisconnect, pairingCode }) => {
+  sock.ev.on('connection.update', async (update) => {
+    const { connection, lastDisconnect, pairingCode, pairCode } = update;
+
     if (connection === 'close') {
       const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
       if (shouldReconnect) {
         console.log('Reconnecting...');
       }
     }
-    if (pairingCode) {
-      latestPairCode = pairingCode;
+
+    if (pairingCode || pairCode) {
+      latestPairCode = pairingCode || pairCode;
+      console.log('Generated Pair Code:', latestPairCode);
     }
   });
 
@@ -57,9 +61,7 @@ app.post('/generate-id', async (req, res) => {
   }, 5000);
 });
 
-// QR Code Handler
-let currentQR = '';
-
+// ======== QR Code Generation ========
 app.get('/generate-qr', async (req, res) => {
   const { state, saveCreds } = await useMultiFileAuthState('auth_qr');
   const { version } = await fetchLatestBaileysVersion();
@@ -73,6 +75,7 @@ app.get('/generate-qr', async (req, res) => {
   sock.ev.on('connection.update', async ({ qr }) => {
     if (qr) {
       currentQR = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
+      console.log('QR Code Generated');
     }
   });
 
@@ -87,7 +90,7 @@ app.get('/generate-qr', async (req, res) => {
   }, 5000);
 });
 
-// Serve index.html fallback
+// ======== Serve index.html fallback ========
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
