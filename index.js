@@ -1,19 +1,25 @@
+// index.js
+
 import express from 'express';
-import { Boom } from '@hapi/boom';
-import makeWASocket, { useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason } from '@whiskeysockets/baileys';
+import makeWASocket, {
+  useMultiFileAuthState,
+  fetchLatestBaileysVersion,
+  DisconnectReason
+} from '@whiskeysockets/baileys';
 import cors from 'cors';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import fs from 'fs';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
+const __dirname = path.resolve();
 
 app.use(cors());
-app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json());
+
+// Pair Code Handler
+let latestPairCode = '';
 
 app.post('/generate-id', async (req, res) => {
   const { number } = req.body;
@@ -28,14 +34,16 @@ app.post('/generate-id', async (req, res) => {
     printQRInTerminal: false
   });
 
-  let latestPairCode = '';
-
   sock.ev.on('connection.update', async ({ connection, lastDisconnect, pairingCode }) => {
     if (connection === 'close') {
-      const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
-      if (shouldReconnect) console.log('Reconnecting...');
+      const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+      if (shouldReconnect) {
+        console.log('Reconnecting...');
+      }
     }
-    if (pairingCode) latestPairCode = pairingCode;
+    if (pairingCode) {
+      latestPairCode = pairingCode;
+    }
   });
 
   sock.ev.on('creds.update', saveCreds);
@@ -49,6 +57,9 @@ app.post('/generate-id', async (req, res) => {
   }, 5000);
 });
 
+// QR Code Handler
+let currentQR = '';
+
 app.get('/generate-qr', async (req, res) => {
   const { state, saveCreds } = await useMultiFileAuthState('auth_qr');
   const { version } = await fetchLatestBaileysVersion();
@@ -58,8 +69,6 @@ app.get('/generate-qr', async (req, res) => {
     auth: state,
     printQRInTerminal: false
   });
-
-  let currentQR = '';
 
   sock.ev.on('connection.update', async ({ qr }) => {
     if (qr) {
@@ -78,8 +87,9 @@ app.get('/generate-qr', async (req, res) => {
   }, 5000);
 });
 
+// Serve index.html fallback
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public/index.html'));
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.listen(PORT, () => {
