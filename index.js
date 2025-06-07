@@ -10,6 +10,7 @@ import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+
 global.crypto = crypto;
 
 const app = express();
@@ -43,9 +44,7 @@ app.post('/generate-id', async (req, res) => {
 
     sock.ev.on('creds.update', saveCreds);
 
-    let codeResolved = false;
-
-    sock.ev.on('connection.update', async (update) => {
+    sock.ev.on('connection.update', (update) => {
       const { connection, lastDisconnect } = update;
 
       if (connection === 'close') {
@@ -55,34 +54,36 @@ app.post('/generate-id', async (req, res) => {
         }
       }
 
-      if (connection === 'open' && !codeResolved) {
-        try {
-          await new Promise(r => setTimeout(r, 1000));
-          const code = await sock.requestPairingCode(jid);
-
-          await sock.presenceSubscribe(jid);
-          await sock.sendPresenceUpdate('available');
-          await sock.sendMessage(jid, { text: '.' });
-
-          console.log('✅ Pair code generated:', code);
-          codeResolved = true;
-          res.json({ code });
-        } catch (err) {
-          console.error('❌ Error after connection open:', err);
-          res.status(500).json({ error: 'Error generating code after connection' });
-        }
+      if (connection === 'open') {
+        console.log('✅ WhatsApp connected');
       }
     });
 
-    setTimeout(() => {
-      if (!codeResolved) {
-        console.error('❌ Timeout waiting for WhatsApp connection');
-        res.status(500).json({ error: 'Timeout waiting for WhatsApp connection' });
+    // Small delay to ensure connection
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    const code = await sock.requestPairingCode(jid);
+
+    if (code) {
+      console.log('Generated Pair Code:', code);
+
+      // 🟡 Try to trigger the "Link Device" push notification
+      try {
+        await sock.presenceSubscribe(jid);
+        await sock.sendPresenceUpdate('available');
+        await sock.sendMessage(jid, { text: '.' });
+        console.log('🔔 Notification sent to trigger linking prompt');
+      } catch (notifyErr) {
+        console.warn('⚠️ Could not send notification:', notifyErr.message);
       }
-    }, 15000);
+
+      res.json({ code });
+    } else {
+      res.status(500).json({ error: 'Failed to generate pairing code' });
+    }
 
   } catch (error) {
-    console.error('❌ General error:', error);
+    console.error('Error generating ID:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -122,7 +123,7 @@ app.get('/generate-qr', async (req, res) => {
   }
 });
 
-// ======== Serve index.html fallback ========
+// ======== Fallback to index.html ========
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
