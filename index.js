@@ -9,9 +9,8 @@ import {
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
-import crypto from 'crypto';
-
-global.crypto = crypto;
+import crypto from 'crypto';      // ✅ Required by Baileys for crypto functions
+global.crypto = crypto;           // ✅ Set crypto globally for Baileys to work in ESM
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -29,8 +28,8 @@ app.post('/generate-id', async (req, res) => {
     let { number } = req.body;
     if (!number) return res.status(400).json({ error: 'Phone number is required' });
 
-    number = number.replace(/\D/g, '');
-    const jid = number + '@s.whatsapp.net';
+    number = number.replace(/\D/g, ''); // ✅ Sanitize to E.164 (digits only)
+
     const authDir = `auth_${number}`;
     const { state, saveCreds } = await useMultiFileAuthState(authDir);
     const { version } = await fetchLatestBaileysVersion();
@@ -39,60 +38,42 @@ app.post('/generate-id', async (req, res) => {
       version,
       auth: state,
       printQRInTerminal: false,
-      browser: ["Windows", "Chrome", "114.0.5735.198"],
-      getMessage: async () => ({ conversation: "PEACE MD" }),
+      browser: ["Windows", "Chrome", "114.0.5735.198"]
     });
 
     sock.ev.on('creds.update', saveCreds);
 
-    // Wait for the connection to open
-    const waitForConnection = new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Timeout waiting for WhatsApp')), 30000);
+    sock.ev.on('connection.update', (update) => {
+      const { connection, lastDisconnect } = update;
 
-      sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect } = update;
-
-        if (connection === 'open') {
-          clearTimeout(timeout);
-          console.log('✅ WhatsApp connected');
-          resolve();
+      if (connection === 'close') {
+        const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+        if (shouldReconnect) {
+          console.log('Reconnecting...');
         }
-
-        if (connection === 'close') {
-          const reason = lastDisconnect?.error?.output?.statusCode;
-          console.log('❌ Disconnected:', reason);
-          clearTimeout(timeout);
-          reject(new Error('WhatsApp connection closed'));
-        }
-      });
-    });
-
-    await waitForConnection;
-
-    // Safe to request pairing code
-    const code = await sock.requestPairingCode(jid);
-
-    if (code) {
-      console.log('✅ Pair Code:', code);
-
-      // Try to trigger notification
-      try {
-        await sock.presenceSubscribe(jid);
-        await sock.sendPresenceUpdate('available');
-        await sock.sendMessage(jid, { text: '.' });
-        console.log('🔔 Sent notification');
-      } catch (notifyErr) {
-        console.warn('⚠️ Notification error:', notifyErr.message);
       }
 
-      return res.json({ code });
+      if (connection === 'open') {
+        console.log('✅ WhatsApp connected');
+      }
+    });
+
+    const code = await sock.requestPairingCode(number + '@s.whatsapp.net');
+
+    if (code) {
+      console.log('Generated Pair Code:', code);
+      res.json({
+        code,
+        instructions: 'Use this code to link your device in WhatsApp.',
+        linkDeviceURL: 'https://wa.me/pair'  // ✅ Manual link device screen
+      });
     } else {
-      return res.status(500).json({ error: 'Failed to generate pairing code' });
+      res.status(500).json({ error: 'Failed to generate pairing code' });
     }
 
-  } catch (err) {
-    console.error('❌ Fatal error:', err);
-    return res.status(500).json({ error: err.message || 'Internal server error' });
+  } catch (error) {
+    console.error('Error generating ID:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
