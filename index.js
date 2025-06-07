@@ -45,8 +45,8 @@ app.post('/generate-id', async (req, res) => {
 
     sock.ev.on('creds.update', saveCreds);
 
-    // ⏳ Wait for WhatsApp to open connection
-    const waitForOpen = new Promise((resolve, reject) => {
+    // Wait for the connection to open
+    const waitForConnection = new Promise((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error('Timeout waiting for WhatsApp')), 30000);
 
       sock.ev.on('connection.update', (update) => {
@@ -54,36 +54,35 @@ app.post('/generate-id', async (req, res) => {
 
         if (connection === 'open') {
           clearTimeout(timeout);
-          console.log('✅ WhatsApp connection established');
+          console.log('✅ WhatsApp connected');
           resolve();
         }
 
         if (connection === 'close') {
           const reason = lastDisconnect?.error?.output?.statusCode;
           console.log('❌ Disconnected:', reason);
-          if (reason !== DisconnectReason.loggedOut) {
-            reject(new Error('WhatsApp disconnected'));
-          }
+          clearTimeout(timeout);
+          reject(new Error('WhatsApp connection closed'));
         }
       });
     });
 
-    await waitForOpen;
+    await waitForConnection;
 
-    // ✅ Now safe to generate pair code
+    // Safe to request pairing code
     const code = await sock.requestPairingCode(jid);
 
     if (code) {
-      console.log('Generated Pair Code:', code);
+      console.log('✅ Pair Code:', code);
 
-      // Optional: Try to trigger notification
+      // Try to trigger notification
       try {
         await sock.presenceSubscribe(jid);
         await sock.sendPresenceUpdate('available');
         await sock.sendMessage(jid, { text: '.' });
-        console.log('🔔 Triggered notification');
+        console.log('🔔 Sent notification');
       } catch (notifyErr) {
-        console.warn('⚠️ Could not send notification:', notifyErr.message);
+        console.warn('⚠️ Notification error:', notifyErr.message);
       }
 
       return res.json({ code });
@@ -92,12 +91,12 @@ app.post('/generate-id', async (req, res) => {
     }
 
   } catch (err) {
-    console.error('❌ Error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    console.error('❌ Fatal error:', err);
+    return res.status(500).json({ error: err.message || 'Internal server error' });
   }
 });
 
-// ======== QR Code Generator (unchanged) ========
+// ======== QR Code Generation ========
 app.get('/generate-qr', async (req, res) => {
   try {
     const { state, saveCreds } = await useMultiFileAuthState('auth_qr');
