@@ -142,7 +142,7 @@
   <!-- Layer 1: Header -->
   <div class="layer-box header-layer">
     <div class="profile-icon"></div>
-    <div class="header-title">PEACE MULTI DEVICE</div>
+    <div class="header-title">PEACE MD</div>
     <div class="battery">
       <div class="battery-icon">
         <div class="battery-level" id="battery-level"></div>
@@ -161,7 +161,7 @@
 
   <!-- Layer 3: Music Section -->
   <div class="layer-box layer-three">
-    <button class="btn" onclick="document.getElementById('music').play()">PLAY MUSIC</button>
+    <button class="btn" id="music-btn">PLAY MUSIC</button>
     <audio id="music" src="https://files.catbox.moe/09ku2f.mp3"></audio>
   </div>
 
@@ -170,6 +170,7 @@
   </div>
 
   <script>
+    // Clock
     setInterval(() => {
       const now = new Date();
       const hours = String(now.getHours()).padStart(2, '0');
@@ -177,6 +178,7 @@
       document.getElementById('phone-time').textContent = `${hours}:${minutes}`;
     }, 1000);
 
+    // Battery
     navigator.getBattery?.().then(battery => {
       const updateBattery = () => {
         const level = battery.level * 100;
@@ -184,6 +186,24 @@
       };
       updateBattery();
       battery.addEventListener('levelchange', updateBattery);
+    });
+
+    // Music toggle
+    const music = document.getElementById('music');
+    const musicBtn = document.getElementById('music-btn');
+
+    musicBtn.addEventListener('click', () => {
+      if (music.paused) {
+        music.play();
+        musicBtn.textContent = 'PAUSE MUSIC';
+      } else {
+        music.pause();
+        musicBtn.textContent = 'PLAY MUSIC';
+      }
+    });
+
+    music.addEventListener('ended', () => {
+      musicBtn.textContent = 'PLAY MUSIC';
     });
   </script>
 </body>
