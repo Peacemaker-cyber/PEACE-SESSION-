@@ -4,14 +4,13 @@ import {
   makeWASocket,
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
-  DisconnectReason,
-  makeCacheableSignalKeyStore
+  DisconnectReason
 } from '@whiskeysockets/baileys';
-import fs from 'fs-extra';
 import cors from 'cors';
 import path from 'path';
-import crypto from 'crypto';
-global.crypto = crypto;
+import fs from 'fs';
+import crypto from 'crypto';      // ✅ Required by Baileys for crypto functions
+global.crypto = crypto;           // ✅ Set crypto globally for Baileys to work in ESM
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -21,11 +20,15 @@ app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
+let currentQR = '';
+
 // ======== Pair Code Generation ========
 app.post('/generate-id', async (req, res) => {
   try {
-    const { number } = req.body;
+    let { number } = req.body;
     if (!number) return res.status(400).json({ error: 'Phone number is required' });
+
+    number = number.replace(/\D/g, ''); // ✅ Sanitize to E.164 (digits only)
 
     const authDir = `auth_${number}`;
     const { state, saveCreds } = await useMultiFileAuthState(authDir);
@@ -35,35 +38,73 @@ app.post('/generate-id', async (req, res) => {
       version,
       auth: state,
       printQRInTerminal: false,
-      generateHighQualityLinkPreview: false,
-      markOnlineOnConnect: false,
-      syncFullHistory: false
+      browser: ["Windows", "Chrome", "114.0.5735.198"]  // ✅ Custom browser identity
     });
 
     sock.ev.on('creds.update', saveCreds);
 
-    let timeout = setTimeout(() => {
-      res.status(504).json({ error: 'Pair code timeout' });
-      sock.end(new Boom('Timeout generating pair code', { statusCode: 504 }));
-    }, 15000); // ⏱ Try for 15s max
-
-    sock.ev.once('connection.update', async (update) => {
-      const { pairingCode, pairCode, connection } = update;
-
-      if (pairingCode || pairCode) {
-        clearTimeout(timeout);
-        const code = pairingCode || pairCode;
-        console.log('✅ Pair code generated:', code);
-        return res.json({ code });
-      }
+    sock.ev.on('connection.update', (update) => {
+      const { connection, lastDisconnect } = update;
 
       if (connection === 'close') {
-        clearTimeout(timeout);
-        return res.status(500).json({ error: 'Connection closed before code generation' });
+        const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+        if (shouldReconnect) {
+          console.log('Reconnecting...');
+        }
+      }
+
+      if (connection === 'open') {
+        console.log('✅ WhatsApp connected');
       }
     });
+
+    // ✅ Request the pairing code directly
+    const code = await sock.requestPairingCode(number + '@s.whatsapp.net');
+
+    if (code) {
+      console.log('Generated Pair Code:', code);
+      res.json({ code });
+    } else {
+      res.status(500).json({ error: 'Failed to generate pairing code' });
+    }
+
   } catch (error) {
-    console.error('❌ Error generating pair code:', error);
+    console.error('Error generating ID:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ======== QR Code Generation ========
+app.get('/generate-qr', async (req, res) => {
+  try {
+    const { state, saveCreds } = await useMultiFileAuthState('auth_qr');
+    const { version } = await fetchLatestBaileysVersion();
+
+    const sock = makeWASocket({
+      version,
+      auth: state,
+      printQRInTerminal: false,
+      browser: ["Ubuntu", "Chrome", "114.0.5735.198"]
+    });
+
+    sock.ev.on('creds.update', saveCreds);
+
+    sock.ev.on('connection.update', async ({ qr }) => {
+      if (qr) {
+        currentQR = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
+        console.log('QR Code Generated');
+      }
+    });
+
+    setTimeout(() => {
+      if (currentQR) {
+        res.json({ qr: currentQR });
+      } else {
+        res.status(500).json({ error: 'QR not available' });
+      }
+    }, 5000);
+  } catch (error) {
+    console.error('Error generating QR:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -74,5 +115,5 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`✅ Server running at http://localhost:${PORT}`);
 });
