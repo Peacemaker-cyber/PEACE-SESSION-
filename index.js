@@ -9,8 +9,8 @@ import {
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
-import crypto from 'crypto';      // ✅ Required by Baileys for crypto functions
-global.crypto = crypto;           // ✅ Set crypto globally for Baileys to work in ESM
+import crypto from 'crypto';
+global.crypto = crypto;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -28,8 +28,8 @@ app.post('/generate-id', async (req, res) => {
     let { number } = req.body;
     if (!number) return res.status(400).json({ error: 'Phone number is required' });
 
-    number = number.replace(/\D/g, ''); // ✅ Sanitize to E.164 (digits only)
-
+    number = number.replace(/\D/g, '');
+    const jid = number + '@s.whatsapp.net';
     const authDir = `auth_${number}`;
     const { state, saveCreds } = await useMultiFileAuthState(authDir);
     const { version } = await fetchLatestBaileysVersion();
@@ -38,38 +38,54 @@ app.post('/generate-id', async (req, res) => {
       version,
       auth: state,
       printQRInTerminal: false,
-      browser: ["Windows", "Chrome", "114.0.5735.198"]  // ✅ Custom browser identity
+      browser: ["Windows", "Chrome", "114.0.5735.198"]
     });
 
     sock.ev.on('creds.update', saveCreds);
 
-    sock.ev.on('connection.update', (update) => {
+    let responded = false;
+
+    sock.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect } = update;
+
+      if (connection === 'open' && !responded) {
+        console.log('✅ WhatsApp connected, requesting pair code...');
+        try {
+          const code = await sock.requestPairingCode(jid);
+          if (code) {
+            console.log('✅ Pair code generated:', code);
+            responded = true;
+            return res.json({ code });
+          } else {
+            console.error('❌ Failed to receive pair code');
+            responded = true;
+            return res.status(500).json({ error: 'Failed to generate pairing code' });
+          }
+        } catch (err) {
+          console.error('❌ Error generating pair code:', err);
+          responded = true;
+          return res.status(500).json({ error: 'Error generating pairing code' });
+        }
+      }
 
       if (connection === 'close') {
         const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
         if (shouldReconnect) {
-          console.log('Reconnecting...');
+          console.log('🔁 Reconnecting...');
         }
-      }
-
-      if (connection === 'open') {
-        console.log('✅ WhatsApp connected');
       }
     });
 
-    // ✅ Request the pairing code directly
-    const code = await sock.requestPairingCode(number + '@s.whatsapp.net');
-
-    if (code) {
-      console.log('Generated Pair Code:', code);
-      res.json({ code });
-    } else {
-      res.status(500).json({ error: 'Failed to generate pairing code' });
-    }
+    // Timeout in case 'open' is never reached
+    setTimeout(() => {
+      if (!responded) {
+        console.error('⏰ Timeout waiting for connection.');
+        return res.status(500).json({ error: 'Timeout waiting for WhatsApp connection' });
+      }
+    }, 15000); // 15 seconds max wait
 
   } catch (error) {
-    console.error('Error generating ID:', error);
+    console.error('❌ Error generating ID:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
