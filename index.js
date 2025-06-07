@@ -9,8 +9,8 @@ import {
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
-import crypto from 'crypto';      // ✅ Required by Baileys for crypto functions
-global.crypto = crypto;           // ✅ Set crypto globally for Baileys to work in ESM
+import crypto from 'crypto';
+global.crypto = crypto;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -43,6 +43,8 @@ app.post('/generate-id', async (req, res) => {
 
     sock.ev.on('creds.update', saveCreds);
 
+    let codeResolved = false;
+
     sock.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect } = update;
 
@@ -53,25 +55,34 @@ app.post('/generate-id', async (req, res) => {
         }
       }
 
-      if (connection === 'open') {
-        console.log('✅ WhatsApp socket connected');
+      if (connection === 'open' && !codeResolved) {
+        try {
+          await new Promise(r => setTimeout(r, 1000));
+          const code = await sock.requestPairingCode(jid);
+
+          await sock.presenceSubscribe(jid);
+          await sock.sendPresenceUpdate('available');
+          await sock.sendMessage(jid, { text: '.' });
+
+          console.log('✅ Pair code generated:', code);
+          codeResolved = true;
+          res.json({ code });
+        } catch (err) {
+          console.error('❌ Error after connection open:', err);
+          res.status(500).json({ error: 'Error generating code after connection' });
+        }
       }
     });
 
-    // 🔑 Request pair code and nudge WhatsApp to send notification
-    const code = await sock.requestPairingCode(jid);
-    await sock.presenceSubscribe(jid);
-    await sock.sendPresenceUpdate('available');
-
-    if (code) {
-      console.log('✅ Pair code generated:', code);
-      res.json({ code });
-    } else {
-      res.status(500).json({ error: 'Failed to generate pairing code' });
-    }
+    setTimeout(() => {
+      if (!codeResolved) {
+        console.error('❌ Timeout waiting for WhatsApp connection');
+        res.status(500).json({ error: 'Timeout waiting for WhatsApp connection' });
+      }
+    }, 15000);
 
   } catch (error) {
-    console.error('❌ Error generating ID:', error);
+    console.error('❌ General error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
