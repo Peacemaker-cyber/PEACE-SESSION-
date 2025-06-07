@@ -7,27 +7,92 @@
   <style>
     body {
       margin: 0;
-      font-family: Arial, sans-serif;
-      background-image: url('https://files.catbox.moe/n0dgjr.jpg');
-      background-size: cover;
-      background-position: center;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       color: white;
       text-align: center;
-      padding: 30px 15px;
+      padding: 30px 15px 100px;
+      position: relative;
+      overflow: hidden;
+      z-index: 0;
+    }
+
+    /* Background slideshow animation */
+    .background-slide {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background-size: cover;
+      background-position: center;
+      z-index: -3;
+      animation: bgSlide 20s infinite alternate ease-in-out;
+    }
+
+    @keyframes bgSlide {
+      0%   { background-image: url('https://files.catbox.moe/rbv101.jpg'); }
+      100% { background-image: url('https://files.catbox.moe/yndl4u.jpg'); }
+    }
+
+    /* Dark overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: -2;
+    }
+
+    .star {
+      position: absolute;
+      background: white;
+      border-radius: 50%;
+      width: 2px;
+      height: 2px;
+      animation: twinkle 4s infinite ease-in-out, colorChange 10s infinite;
+      z-index: -1;
+    }
+
+    @keyframes twinkle {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
+    }
+
+    @keyframes colorChange {
+      0% { background-color: white; }
+      25% { background-color: #32cd32; }
+      50% { background-color: #00ffff; }
+      75% { background-color: #ff6600; }
+      100% { background-color: white; }
+    }
+
+    .logo {
+      width: 100px;
+      height: 100px;
+      margin: 0 auto 15px;
+      background-image: url('https://files.catbox.moe/rbv101.jpg');
+      background-size: cover;
+      background-position: center;
+      border-radius: 50%;
+      border: 2px solid #32cd32;
+      box-shadow: 0 0 10px rgba(0,0,0,0.6);
     }
 
     h1 {
+      font-size: 30px;
+      background: linear-gradient(to right, orange, #32cd32);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
       margin-bottom: 10px;
-      font-size: 28px;
     }
 
     p.subtext {
       font-size: 16px;
       margin-bottom: 30px;
+      color: #ddd;
     }
 
     input {
-      padding: 10px;
+      padding: 12px;
       width: 80%;
       max-width: 300px;
       border-radius: 10px;
@@ -35,29 +100,83 @@
       outline: none;
       font-size: 16px;
       margin-bottom: 15px;
+      background: #fff;
+      color: #000;
     }
 
     button {
-      padding: 10px 20px;
-      background-color: #4CAF50;
+      padding: 12px 25px;
+      background: linear-gradient(to right, #ff6600, #32cd32);
       border: none;
       color: white;
       border-radius: 10px;
       font-size: 16px;
       cursor: pointer;
+      font-weight: bold;
+      transition: background 0.3s;
     }
 
     button:disabled {
-      background-color: #ccc;
+      background-color: #999;
       cursor: not-allowed;
     }
 
     #codeDisplay {
       margin-top: 20px;
       font-size: 18px;
-      background-color: rgba(0, 0, 0, 0.4);
+      background-color: rgba(0, 0, 0, 0.5);
       padding: 15px;
       border-radius: 10px;
+      display: none;
+    }
+
+    .loader {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #32cd32;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+      margin: 15px auto;
+      display: none;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .typing-line {
+      margin-top: 40px;
+      font-size: 18px;
+      font-weight: bold;
+      font-family: 'Courier New', Courier, monospace;
+      white-space: nowrap;
+      overflow: hidden;
+      border-right: 2px solid #32cd32;
+      width: 0;
+      animation: typing 4s steps(40, end) infinite, blink 0.7s infinite, textColorChange 10s infinite;
+      position: relative;
+      z-index: 1;
+    }
+
+    @keyframes typing {
+      0% { width: 0; }
+      50% { width: 340px; }
+      100% { width: 0; }
+    }
+
+    @keyframes blink {
+      0%, 100% { border-color: transparent; }
+      50% { border-color: #32cd32; }
+    }
+
+    @keyframes textColorChange {
+      0%   { color: #ffffff; }
+      25%  { color: #32cd32; }
+      50%  { color: #00ffff; }
+      75%  { color: #ff6600; }
+      100% { color: #ffffff; }
     }
 
     footer {
@@ -68,21 +187,82 @@
       text-align: center;
       font-size: 14px;
       color: #ccc;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { color: #ccc; }
+      50% { color: #32cd32; }
     }
   </style>
 </head>
 <body>
-  <h1>PEACE MD</h1>
-  <p class="subtext">Enter your WhatsApp number. Best regards, Peacemaker</p>
 
-  <input type="text" id="numberInput" placeholder="e.g. 254712345678" />
+  <div class="background-slide"></div>
+
+  <!-- Stars -->
+  <script>
+    for (let i = 0; i < 100; i++) {
+      const star = document.createElement('div');
+      star.className = 'star';
+      star.style.top = Math.random() * 100 + '%';
+      star.style.left = Math.random() * 100 + '%';
+      star.style.animationDelay = `${Math.random() * 5}s`;
+      document.body.appendChild(star);
+    }
+  </script>
+
+  <div class="logo"></div>
+
+  <h1>PEACE MD</h1>
+  <p class="subtext">Enter your WhatsApp number to get a pair code, Best regards Peacemaker</p>
+
+  <input type="text" id="numberInput" placeholder="+254769××××××" />
   <br />
   <button id="generateBtn">Generate Pair Code</button>
 
+  <div class="loader" id="loadingSpinner"></div>
   <div id="codeDisplay"></div>
 
-  <footer>PEACEMAKER TECH SOLUTIONS @2025</footer>
+  <div class="typing-line">Enjoy great features of PEACE MD</div>
 
-  <script src="gen-id.js"></script>
+  <footer>PEACEMAKER TECH SOLUTIONS © 2025</footer>
+
+  <script>
+    const input = document.getElementById('numberInput');
+    const button = document.getElementById('generateBtn');
+    const display = document.getElementById('codeDisplay');
+    const loader = document.getElementById('loadingSpinner');
+
+    button.addEventListener('click', async () => {
+      const number = input.value.trim();
+      if (!/^254\d{9}$/.test(number)) {
+        alert('Please enter a valid phone number like 254769876×××');
+        return;
+      }
+
+      button.disabled = true;
+      loader.style.display = 'block';
+      display.style.display = 'none';
+
+      try {
+        const res = await fetch('/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ number })
+        });
+
+        const data = await res.json();
+        display.textContent = data.code || 'No code received.';
+        display.style.display = 'block';
+      } catch (err) {
+        display.textContent = 'Error generating code.';
+        display.style.display = 'block';
+      }
+
+      loader.style.display = 'none';
+      button.disabled = false;
+    });
+  </script>
 </body>
 </html>
