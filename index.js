@@ -4,7 +4,8 @@ import {
   makeWASocket,
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
-  DisconnectReason
+  DisconnectReason,
+  makeCacheableSignalKeyStore
 } from '@whiskeysockets/baileys';
 import cors from 'cors';
 import path from 'path';
@@ -39,42 +40,53 @@ app.post('/generate-id', async (req, res) => {
       version,
       auth: state,
       printQRInTerminal: false,
-      browser: ["Windows", "Chrome", "114.0.5735.198"]
+      browser: ["Windows", "Chrome", "114.0.5735.198"],
+      getMessage: async () => ({ conversation: "PEACE MD" }),
     });
 
     sock.ev.on('creds.update', saveCreds);
+
+    let isConnected = false;
+    let timeout;
 
     sock.ev.on('connection.update', (update) => {
       const { connection, lastDisconnect } = update;
 
       if (connection === 'close') {
         const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-        if (shouldReconnect) {
-          console.log('Reconnecting...');
-        }
+        if (shouldReconnect) console.log('Reconnecting...');
       }
 
       if (connection === 'open') {
+        isConnected = true;
+        clearTimeout(timeout);
         console.log('✅ WhatsApp connected');
       }
     });
 
-    // Small delay to ensure connection
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // ⏱ Timeout if not connected in 30 seconds
+    timeout = setTimeout(() => {
+      if (!isConnected) {
+        console.log('❌ Timeout waiting for WhatsApp connection');
+        return res.status(500).json({ error: 'Timeout waiting for WhatsApp connection' });
+      }
+    }, 30000);
+
+    // Wait briefly to ensure connection event fires
+    await new Promise(resolve => setTimeout(resolve, 3000));
 
     const code = await sock.requestPairingCode(jid);
 
     if (code) {
       console.log('Generated Pair Code:', code);
 
-      // 🟡 Try to trigger the "Link Device" push notification
       try {
         await sock.presenceSubscribe(jid);
         await sock.sendPresenceUpdate('available');
         await sock.sendMessage(jid, { text: '.' });
         console.log('🔔 Notification sent to trigger linking prompt');
       } catch (notifyErr) {
-        console.warn('⚠️ Could not send notification:', notifyErr.message);
+        console.warn('⚠️ Notification trigger failed:', notifyErr.message);
       }
 
       res.json({ code });
@@ -88,7 +100,7 @@ app.post('/generate-id', async (req, res) => {
   }
 });
 
-// ======== QR Code Generation ========
+// ======== QR Code Generation (Unchanged) ========
 app.get('/generate-qr', async (req, res) => {
   try {
     const { state, saveCreds } = await useMultiFileAuthState('auth_qr');
