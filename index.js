@@ -4,8 +4,7 @@ import {
   makeWASocket,
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
-  DisconnectReason,
-  makeCacheableSignalKeyStore
+  DisconnectReason
 } from '@whiskeysockets/baileys';
 import cors from 'cors';
 import path from 'path';
@@ -46,61 +45,59 @@ app.post('/generate-id', async (req, res) => {
 
     sock.ev.on('creds.update', saveCreds);
 
-    let isConnected = false;
-    let timeout;
+    // ⏳ Wait for WhatsApp to open connection
+    const waitForOpen = new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('Timeout waiting for WhatsApp')), 30000);
 
-    sock.ev.on('connection.update', (update) => {
-      const { connection, lastDisconnect } = update;
+      sock.ev.on('connection.update', (update) => {
+        const { connection, lastDisconnect } = update;
 
-      if (connection === 'close') {
-        const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-        if (shouldReconnect) console.log('Reconnecting...');
-      }
+        if (connection === 'open') {
+          clearTimeout(timeout);
+          console.log('✅ WhatsApp connection established');
+          resolve();
+        }
 
-      if (connection === 'open') {
-        isConnected = true;
-        clearTimeout(timeout);
-        console.log('✅ WhatsApp connected');
-      }
+        if (connection === 'close') {
+          const reason = lastDisconnect?.error?.output?.statusCode;
+          console.log('❌ Disconnected:', reason);
+          if (reason !== DisconnectReason.loggedOut) {
+            reject(new Error('WhatsApp disconnected'));
+          }
+        }
+      });
     });
 
-    // ⏱ Timeout if not connected in 30 seconds
-    timeout = setTimeout(() => {
-      if (!isConnected) {
-        console.log('❌ Timeout waiting for WhatsApp connection');
-        return res.status(500).json({ error: 'Timeout waiting for WhatsApp connection' });
-      }
-    }, 30000);
+    await waitForOpen;
 
-    // Wait briefly to ensure connection event fires
-    await new Promise(resolve => setTimeout(resolve, 3000));
-
+    // ✅ Now safe to generate pair code
     const code = await sock.requestPairingCode(jid);
 
     if (code) {
       console.log('Generated Pair Code:', code);
 
+      // Optional: Try to trigger notification
       try {
         await sock.presenceSubscribe(jid);
         await sock.sendPresenceUpdate('available');
         await sock.sendMessage(jid, { text: '.' });
-        console.log('🔔 Notification sent to trigger linking prompt');
+        console.log('🔔 Triggered notification');
       } catch (notifyErr) {
-        console.warn('⚠️ Notification trigger failed:', notifyErr.message);
+        console.warn('⚠️ Could not send notification:', notifyErr.message);
       }
 
-      res.json({ code });
+      return res.json({ code });
     } else {
-      res.status(500).json({ error: 'Failed to generate pairing code' });
+      return res.status(500).json({ error: 'Failed to generate pairing code' });
     }
 
-  } catch (error) {
-    console.error('Error generating ID:', error);
-    res.status(500).json({ error: 'Internal server error' });
+  } catch (err) {
+    console.error('❌ Error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// ======== QR Code Generation (Unchanged) ========
+// ======== QR Code Generator (unchanged) ========
 app.get('/generate-qr', async (req, res) => {
   try {
     const { state, saveCreds } = await useMultiFileAuthState('auth_qr');
@@ -135,7 +132,7 @@ app.get('/generate-qr', async (req, res) => {
   }
 });
 
-// ======== Fallback to index.html ========
+// ======== Serve index.html fallback ========
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
