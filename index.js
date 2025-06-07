@@ -8,9 +8,9 @@ import {
 } from '@whiskeysockets/baileys';
 import cors from 'cors';
 import path from 'path';
-import fs from 'fs-extra';
-import crypto from 'crypto';
-global.crypto = crypto; // Required by Baileys
+import fs from 'fs-extra'; // ✅ Use fs-extra instead of native fs
+import crypto from 'crypto'; // ✅ Ensure crypto is globally available
+global.crypto = crypto;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -23,29 +23,23 @@ app.use(express.json());
 let latestPairCode = '';
 let currentQR = '';
 
-/**
- * ======== Pair Code Generation ========
- */
+// ======== Pair Code Generation ========
 app.post('/generate-id', async (req, res) => {
   try {
     const { number } = req.body;
     if (!number) return res.status(400).json({ error: 'Phone number is required' });
 
     const authDir = `auth_${number}`;
-    await fs.remove(authDir); // ✅ Clear old auth folder
-    console.log(`[INFO] Cleared auth folder for ${number}`);
+    await fs.ensureDir(authDir); // ✅ Ensure auth directory exists
 
     const { state, saveCreds } = await useMultiFileAuthState(authDir);
     const { version } = await fetchLatestBaileysVersion();
-
-    let gotCode = false;
-    latestPairCode = '';
 
     const sock = makeWASocket({
       version,
       auth: state,
       printQRInTerminal: false,
-      browser: ['Ubuntu', 'Chrome', '22.04'], // Good default
+      browser: ['Ubuntu', 'Chrome', '22.04']
     });
 
     sock.ev.on('creds.update', saveCreds);
@@ -54,37 +48,33 @@ app.post('/generate-id', async (req, res) => {
       const { connection, lastDisconnect, pairingCode, pairCode } = update;
 
       if (connection === 'close') {
-        const shouldReconnect =
-          lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-        if (shouldReconnect) console.log('[WARN] Reconnecting...');
+        const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+        if (shouldReconnect) {
+          console.log('Reconnecting...');
+        }
       }
 
       if (pairingCode || pairCode) {
         latestPairCode = pairingCode || pairCode;
-        gotCode = true;
-        console.log(`[SUCCESS] Pair Code Generated: ${latestPairCode}`);
+        console.log('✅ Generated Pair Code:', latestPairCode);
       }
     });
 
-    // Set timeout (default 6 seconds)
-    const timeoutMs = 6000;
+    // Give it up to 10 seconds max
     setTimeout(() => {
-      if (gotCode && latestPairCode) {
+      if (latestPairCode) {
         res.json({ code: latestPairCode });
       } else {
-        console.log('[ERROR] Pair code generation timed out');
-        res.status(500).json({ error: 'Failed to generate pairing code in time' });
+        res.status(500).json({ error: '⏰ Failed to generate pairing code in time' });
       }
-    }, timeoutMs);
+    }, 10000);
   } catch (error) {
-    console.error('Error generating ID:', error);
+    console.error('❌ Error generating ID:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-/**
- * ======== QR Code Generation ========
- */
+// ======== QR Code Generation ========
 app.get('/generate-qr', async (req, res) => {
   try {
     const { state, saveCreds } = await useMultiFileAuthState('auth_qr');
@@ -94,6 +84,7 @@ app.get('/generate-qr', async (req, res) => {
       version,
       auth: state,
       printQRInTerminal: false,
+      browser: ['Ubuntu', 'Chrome', '22.04']
     });
 
     sock.ev.on('creds.update', saveCreds);
@@ -113,14 +104,12 @@ app.get('/generate-qr', async (req, res) => {
       }
     }, 5000);
   } catch (error) {
-    console.error('Error generating QR:', error);
+    console.error('❌ Error generating QR:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-/**
- * ======== Serve index.html fallback ========
- */
+// ======== Serve index.html fallback ========
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
